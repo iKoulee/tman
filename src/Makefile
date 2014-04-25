@@ -1,4 +1,4 @@
-all: libtman.so tman
+all: clean libtman.so tman
 
 libtman.so:
 	$(CC) -ansi -Wall --shared -ldl -fPIC -o $@ libtman.c
@@ -7,5 +7,5 @@ tman:
 	$(CC) -ansi -Wall -o $@ tman.c
 
 clean:
-	rm ./libtman.so
-	rm ./tman
+	$(RM) ./libtman.so
+	$(RM) ./tman

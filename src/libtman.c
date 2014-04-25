@@ -6,10 +6,10 @@
 #include <sys/time.h>
 #include <dlfcn.h>
 
-// sys/time.h
+/* sys/time.h */
 static int (*orig_gettimeofday)(struct timeval *, struct timezone *);
 
-// time.h
+/* time.h */
 static int (*orig_clock_gettime)(clockid_t, struct timespec *);
 
 

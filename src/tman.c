@@ -4,10 +4,15 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <string.h>
+#include <unistd.h> /* because of sleep */
 #include <sys/stat.h>
-#include <linux/msg.h>
-#include <linux/ipc.h>
+#include <sys/msg.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
 #include <linux/limits.h>
+#include <errno.h>
+#include <error.h>
+#include "tman.h"
 
 char *findCommandInPath(const char *command) {
     char const *delim = ":";
@@ -40,6 +45,7 @@ char *findCommandInPath(const char *command) {
 
 int main(int argc, char **argv) {
     static char *commandPath;
+    static char *command;
 
     if (argc <= 1) {
         printf("Nothing to do\n");
@@ -63,6 +69,8 @@ int main(int argc, char **argv) {
         if (flag == -1)
             break;
 
+        printf("optarg='%s'\n", optarg);
+
         switch (flag) {
             case 'p':
                 printf("Pid %s\n", optarg);
@@ -71,9 +79,10 @@ int main(int argc, char **argv) {
                 printf("Time shift %s\n", optarg);
                 break;
             case 'c':
-                if ((optarg[0] == '.') || (optarg[0] == '/'))
+                command = optarg;
+                if ((optarg[0] == '.') || (optarg[0] == '/')) {
                     commandPath = canonicalize_file_name(optarg);
-                else
+                } else
                     commandPath = findCommandInPath(optarg);
                 printf("Command %s\n", commandPath);
                 break;
@@ -83,6 +92,44 @@ int main(int argc, char **argv) {
                 break;
         }
     }
+
+    int msqid = msgget(ftok(commandPath, 'f'), 0666 | IPC_CREAT);
+    if (msqid <= 0)
+        error(0, errno,"errno: %d", errno);
+    else
+        printf("Queue id: %d\n", msqid);
+/*
+    struct mq_attr *qattr = malloc(sizeof(struct mq_attr));
+    mq_getattr(msqid, qattr);
+    printf("------------------------------");
+    printf("Queue id: %d\nFlags: %ld\nMessages count: %ld\n", msqid, qattr.mq_flags,qattr.mq_flags);
+*/
+    struct timeMsgBuf message = { 1, {42}};
+    int msgid = msgsnd(msqid, &message, (sizeof(struct timeMsgBuf) - sizeof(long)), 0);
+    if (msgid != 0)
+        error(0, errno,"errno: %d", errno);
+    else
+        printf("MSG ID: %d\n", msgid);
+    sleep(1);
+
+    if (!fork()) {
+        char *args[] = {"date", NULL};
+        const char *env[2];
+        env[1] = "LD_PRELOAD=./libtman.so";
+        env[2] = NULL;
+        printf("Command '%s'\n", commandPath);
+        int rc = execv(commandPath, args);
+        if (rc < 0) {
+            error(0,errno,"Error: %d", errno);
+        } else {
+            printf("'%s' returns %d\n", command, rc);
+        }
+    } else {
+        printf("Waiting for child\n");
+        sleep(10);
+    }
+
+
 
     
 /*    char fullPath[PATH_MAX];
