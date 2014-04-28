@@ -5,6 +5,9 @@
 #include <time.h>
 #include <sys/time.h>
 #include <dlfcn.h>
+#include <sys/msg.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
 
 /* sys/time.h */
 static int (*orig_gettimeofday)(struct timeval *, struct timezone *);

@@ -44,8 +44,9 @@ char *findCommandInPath(const char *command) {
 }
 
 int main(int argc, char **argv) {
-    static char *commandPath;
-    static char *command;
+    char *commandPath;
+    char *command;
+    int fKey, msqid;
 
     if (argc <= 1) {
         printf("Nothing to do\n");
@@ -93,7 +94,13 @@ int main(int argc, char **argv) {
         }
     }
 
-    int msqid = msgget(ftok(commandPath, 'f'), 0666 | IPC_CREAT);
+    fKey = ftok(commandPath, 'b');
+    if (fKey <= 0) {
+        error(1, errno, "Error: %d", errno);
+    } else {
+        printf("Key: %d\n", fKey);
+        msqid = msgget(fKey, 0666 | IPC_CREAT);
+    }
     if (msqid <= 0)
         error(0, errno,"errno: %d", errno);
     else
@@ -113,12 +120,12 @@ int main(int argc, char **argv) {
     sleep(1);
 
     if (!fork()) {
-        char *args[] = {"date", NULL};
-        const char *env[2];
-        env[1] = "LD_PRELOAD=./libtman.so";
-        env[2] = NULL;
-        printf("Command '%s'\n", commandPath);
-        int rc = execv(commandPath, args);
+        char *args[] = {"", NULL};
+        args[0] = commandPath;
+        char buf[32];
+        buf = itoa(10, buf, fKey);
+        char *env[] = {"LD_PRELOAD=./libtman.so", buf, NULL};
+        int rc = execve(args[0], args, env);
         if (rc < 0) {
             error(0,errno,"Error: %d", errno);
         } else {
