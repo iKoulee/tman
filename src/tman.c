@@ -4,15 +4,17 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <string.h>
+#include <mqueue.h>
 #include <unistd.h> /* because of sleep */
 #include <sys/stat.h>
-#include <sys/msg.h>
 #include <sys/types.h>
-#include <sys/ipc.h>
+#include <sys/wait.h>
 #include <linux/limits.h>
 #include <errno.h>
+#include <sys/errno.h>
 #include <error.h>
 #include "tman.h"
+
 
 char *findCommandInPath(const char *command) {
     char const *delim = ":";
@@ -46,7 +48,11 @@ char *findCommandInPath(const char *command) {
 int main(int argc, char **argv) {
     char *commandPath;
     char *command;
-    int fKey, msqid;
+    char mqName[MQ_MAXNAMELENGTH];
+    mqd_t mQ;
+    tmanMSG_t msg;
+    int childStatus;
+    struct mq_attr mqAttr;
 
     if (argc <= 1) {
         printf("Nothing to do\n");
@@ -71,7 +77,6 @@ int main(int argc, char **argv) {
             break;
 
         printf("optarg='%s'\n", optarg);
-
         switch (flag) {
             case 'p':
                 printf("Pid %s\n", optarg);
@@ -91,40 +96,16 @@ int main(int argc, char **argv) {
                 break;
             case 'h':
                 break;
+            default:
+                printf("optarg='%s'\n", optarg);
         }
     }
-
-    fKey = ftok(commandPath, 'b');
-    if (fKey <= 0) {
-        error(1, errno, "Error: %d", errno);
-    } else {
-        printf("Key: %d\n", fKey);
-        msqid = msgget(fKey, 0666 | IPC_CREAT);
-    }
-    if (msqid <= 0)
-        error(0, errno,"errno: %d", errno);
-    else
-        printf("Queue id: %d\n", msqid);
-/*
-    struct mq_attr *qattr = malloc(sizeof(struct mq_attr));
-    mq_getattr(msqid, qattr);
-    printf("------------------------------");
-    printf("Queue id: %d\nFlags: %ld\nMessages count: %ld\n", msqid, qattr.mq_flags,qattr.mq_flags);
-*/
-    struct timeMsgBuf message = { 1, {42}};
-    int msgid = msgsnd(msqid, &message, (sizeof(struct timeMsgBuf) - sizeof(long)), 0);
-    if (msgid != 0)
-        error(0, errno,"errno: %d", errno);
-    else
-        printf("MSG ID: %d\n", msgid);
-    sleep(1);
-
-    if (!fork()) {
+        
+    int chpid;
+    if (! (chpid = fork())) {
         char *args[] = {"", NULL};
-        args[0] = commandPath;
-        char buf[32];
-        buf = itoa(10, buf, fKey);
-        char *env[] = {"LD_PRELOAD=./libtman.so", buf, NULL};
+        args[0] = commandPath; 
+        char *env[] = {"LD_PRELOAD=./libtman.so", NULL};
         int rc = execve(args[0], args, env);
         if (rc < 0) {
             error(0,errno,"Error: %d", errno);
@@ -132,17 +113,55 @@ int main(int argc, char **argv) {
             printf("'%s' returns %d\n", command, rc);
         }
     } else {
+        printf("Child pid is: %d\n", chpid);
         printf("Waiting for child\n");
-        sleep(10);
+
+/*
+ * Open queue
+ */
+
+        mqAttr.mq_msgsize = MQ_MSGSIZE;
+        mqAttr.mq_maxmsg = MQ_MAXMSG;
+
+        snprintf(mqName, MQ_MAXNAMELENGTH, "%s.%d", MQ_PREFIX, chpid);
+        mQ = mq_open(mqName, O_CREAT | O_WRONLY, 0600, &mqAttr);
+        if (mQ == -1) {
+            perror("Cannot open message queue.\n");
+            exit(128+mQ);
+        }
+        memset(msg.data, 0, MQ_MSGSIZE);
+        msg.member.delta.tv_sec = 1800;
+        msg.member.delay.tv_sec = 666;
+        msg.member.type = T_ADD;
+        
+        if (! mq_send(mQ, msg.data, MQ_MSGSIZE, 0)) {
+            switch (errno) {
+                case EAGAIN:
+                    perror("The Queue is full");
+                break;
+                case EBADF:
+                    perror("Invalid Queue");
+                break;
+                case EINTR:
+                    perror("Interupted by signal");
+                break;
+                case EINVAL:
+                    perror("Invalid timeout");
+                break;
+                case EMSGSIZE:
+                    perror("Message is too long");
+                break;
+                case ETIMEDOUT:
+                    perror("Timeout");
+                break;
+            }
+        }
+
+        waitpid(-1, &childStatus, 0);
+        mq_close(mQ);
+        mq_unlink(mqName);
+        printf("Exiting\n");
+        exit(childStatus);
     }
-
-
-
-    
-/*    char fullPath[PATH_MAX];
-    if (realpath(argv[0], fullPath)) {
-        printf("My name is: %s\nMSGMAX is %i\n", fullPath, MSGMAX);
-    }
-*/
     return 0;
 }
