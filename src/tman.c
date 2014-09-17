@@ -13,8 +13,36 @@
 #include <errno.h>
 #include <sys/errno.h>
 #include <error.h>
+#include <ctype.h>
+#include <wordexp.h>
 #include "tman.h"
 
+void printUsage(char *progName) {
+    puts("Usage:");
+    printf("%s [-c <command> | -p <pid>] <-t <change> | -F | -f <file_name> >\n", progName);
+    printf("%s <-t <change> | -F | -f <file_name> > -- <command> <command_arguments>\n\n", progName);
+    puts("\t-c <cmd>\tCommand to execute");
+    puts("\t-f <file>\tScript file with time manipulations");
+    puts("\t-F\t\tFuzzer mode: Send randomly modified time for each request");
+    puts("\t-h\t\tShow this help");
+    puts("\t-p <pid>\tManipulate time on existing process");
+    puts("\t-t <time>\tTime manipulation\n");
+}
+/*
+char ** tokenize(char *input) {
+    int i = 0;
+    int j = 0;
+    static int bookmark[64];
+
+    while (input[i]) {
+        if (!isspace(input[i]) && (i) && (isspace(input[i-1]))) {
+            bookmark[j++] = i;
+        }
+        i++;
+        printf("bookmark[%d]=%d(%c/%d),input[%d]=%c\n\n", j, bookmark[j], input[bookmark[j-1]], isspace(input[bookmark[j-1]]), i, input[i]);
+    }
+}
+*/
 
 char *findCommandInPath(const char *command) {
     char const *delim = ":";
@@ -46,8 +74,7 @@ char *findCommandInPath(const char *command) {
 }
 
 int main(int argc, char **argv) {
-    char *commandPath;
-    char *command;
+    char *command = NULL;
     char mqName[MQ_MAXNAMELENGTH];
     mqd_t mQ;
     tmanMSG_t msg;
@@ -73,10 +100,11 @@ int main(int argc, char **argv) {
 
         flag = getopt_long(argc, argv, shortOpts, longOpts, &indexPtr);
 
+        printf("Args: %d\nFlag: %d(%c)\nOptArg: %s\nIndex: %d\noptind=%d\n\n", argc, flag, flag, optarg, indexPtr, optind);
+
         if (flag == -1)
             break;
 
-        printf("optarg='%s'\n", optarg);
         switch (flag) {
             case 'p':
                 printf("Pid %s\n", optarg);
@@ -86,32 +114,112 @@ int main(int argc, char **argv) {
                 break;
             case 'c':
                 command = optarg;
-                if ((optarg[0] == '.') || (optarg[0] == '/')) {
-                    commandPath = canonicalize_file_name(optarg);
-                } else
-                    commandPath = findCommandInPath(optarg);
-                printf("Command %s\n", commandPath);
                 break;
             case 'F':
                 break;
             case 'h':
                 break;
             default:
-                printf("optarg='%s'\n", optarg);
+                printUsage(canonicalize_file_name(argv[0]));
         }
     }
-        
-    int chpid;
+
+    int chpid; 
     if (! (chpid = fork())) {
-        char *args[] = {"", NULL};
-        args[0] = commandPath; 
-        char *env[] = {"LD_PRELOAD=./libtman.so", NULL};
-        int rc = execve(args[0], args, env);
-        if (rc < 0) {
-            error(0,errno,"Error: %d", errno);
+        wordexp_t arg;
+        if (command) {
+            switch (wordexp(command, &arg, WRDE_SHOWERR)) {
+                case 0:
+                    break;
+                case WRDE_BADCHAR:
+                    perror("Ilegal character");
+                    return 1;
+                case WRDE_BADVAL:
+                    perror("Undefined shell variable");
+                    return 1;
+                case WRDE_CMDSUB:
+                    perror("Command substitution is disalowed");
+                    return 1;
+                case WRDE_NOSPACE:
+                    perror("Memory allocation failed");
+                    return 1;
+                case WRDE_SYNTAX:
+                    perror("Syntax error");
+                    return 1;
+            }
+            printf("argc: %ld\nCmdName: %s\n", arg.we_wordc, arg.we_wordv[0]);
         } else {
-            printf("'%s' returns %d\n", command, rc);
+            if (argc > optind) {
+                arg.we_wordc = argc - optind;
+                arg.we_wordv = &argv[optind];
+                printf("Exec: %s\n", arg.we_wordv[0]);
+            } else {
+                return 1;
+            }
         }
+        int i;
+        for (i=0; environ[i]; i++);
+        printf("Environment: %s\n", environ[i]);
+        /*
+        char *env[] = {"LD_PRELOAD=./libtman.so", NULL};
+        */
+        switch (arg.we_wordv[0][0]) {
+            case '.':
+            case '/':
+                command = arg.we_wordv[0];
+                break;
+            default:
+                command = findCommandInPath(arg.we_wordv[0]);
+        }
+        printf("File %s\nCanonical %s\n", arg.we_wordv[0] , command);
+        switch (execve(command, arg.we_wordv, environ)) {
+            case E2BIG:
+                perror("Argument list is to long");
+                break;
+            case ENOEXEC:
+                perror("File cannot be executed");
+                break;
+            case ENOMEM:
+                perror("Not enough memory");
+                break;
+            case EPERM:
+            case EACCES:
+                perror("Permission denied");
+                break;
+            case EAGAIN:
+                perror("Resources limited");
+                break;
+            case EFAULT:
+                perror("PRUSER!");
+                break;
+            case EIO:
+                perror("I/O error!");
+                break;
+            case EINVAL:
+            case EISDIR:
+            case ELIBBAD:
+                perror("Bad interpreter");
+                break;
+            case ELOOP:
+                perror("Loop in symbolic links detected");
+                break;
+            case ENFILE:
+            case EMFILE:
+                perror("Maximum count of open files reached");
+                break;
+            case ENAMETOOLONG:
+                perror("Filename is too long");
+                break;
+            case ENOENT:
+                perror("Missing file");
+                break;
+            case ETXTBSY:
+                perror("Executable is open for writing");
+                break;
+            default:
+                error(0,errno,"Error: %d", errno);
+        }
+        wordfree(&arg);
     } else {
         printf("Child pid is: %d\n", chpid);
         printf("Waiting for child\n");

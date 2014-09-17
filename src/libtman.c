@@ -34,7 +34,7 @@ mqd_t mQ;
 struct timespec execTime;
 struct msgList mList;
 
-#define print_debug(ts) printf("Call: '%s' %ld,%ld\n", __func__, (*(ts)).tv_sec, (*(ts)).tv_nsec);
+#define print_debug(ts) printf("Call: '%s' %ld,%ld\n", __func__, (ts)->tv_sec, (ts)->tv_nsec);
 
 
 void __attribute__ ((constructor)) libtman_init(void) {
@@ -101,15 +101,15 @@ void __attribute__ ((constructor)) libtman_init(void) {
 int timeControll(struct timespec *ts) {
     ssize_t bytesRead;
     tmanMSG_t *msg;
-    time_t running = (*ts).tv_sec - execTime.tv_sec;
+    time_t running = ts->tv_sec - execTime.tv_sec;
     
     msg = malloc(MQ_MSGSIZE);
     if (! msg) {
         perror("Allocation failed");
         return -1;
     }
-    memset((*msg).data, 0, MQ_MSGSIZE);
-    bytesRead = mq_receive(mQ, (*msg).data, MQ_MSGSIZE, NULL);
+    memset(msg->data, 0, MQ_MSGSIZE);
+    bytesRead = mq_receive(mQ, msg->data, MQ_MSGSIZE, NULL);
     if (bytesRead == -1) {
         if (errno != EAGAIN) {
             fprintf(stderr, "Mqueue error: %d\n", errno);
@@ -120,20 +120,20 @@ int timeControll(struct timespec *ts) {
             perror("Memory allocation failed");
             return -1;
         }
-        (*new).next = NULL;
-        (*new).shift = msg;
+        new->next = NULL;
+        new->shift = msg;
         if (! mList.begin) {
             mList.begin = new;
         } else {
             qNode * this;
             this = mList.begin;
-            while ((*(*this).shift).member.delay.tv_sec < (*msg).member.delay.tv_sec) {
-                this = (*this).next;
-                if (!(*this).next)
+            while (this->shift->member.delay.tv_sec < msg->member.delay.tv_sec) {
+                this = this->next;
+                if (!this->next)
                     break;
             }
-            (*new).next = (*this).next;
-            (*this).next = new;
+            new->next = this->next;
+            this->next = new;
         }
     }
 
@@ -145,30 +145,30 @@ int timeControll(struct timespec *ts) {
         mList.current = mList.begin;
     }
 
-    if ((*mList.current).next) { /* if is time for next record than change it */
-        if ( (*(*(*mList.current).next).shift).member.delay.tv_sec < running ) {
-            mList.current = (*mList.current).next;
+    if (mList.current->next) { /* if is time for next record than change it */
+        if ( mList.current->next->shift->member.delay.tv_sec < running ) {
+            mList.current = mList.current->next;
         }
     }
 
-    switch ( (*(*mList.current).shift).member.type ) {
+    switch ( mList.current->shift->member.type ) {
         case T_SET:
-            (*ts).tv_sec = (*(*mList.current).shift).member.delta.tv_sec;
-            (*ts).tv_nsec = (*(*mList.current).shift).member.delta.tv_nsec;
+            ts->tv_sec = mList.current->shift->member.delta.tv_sec;
+            ts->tv_nsec = mList.current->shift->member.delta.tv_nsec;
             break;
         case T_SUB:
-            (*ts).tv_sec -=  (*(*mList.current).shift).member.delta.tv_sec;
-            (*ts).tv_nsec -= (*(*mList.current).shift).member.delta.tv_nsec;
+            ts->tv_sec -=  mList.current->shift->member.delta.tv_sec;
+            ts->tv_nsec -= mList.current->shift->member.delta.tv_nsec;
             break;
         case T_ADD:
-            (*ts).tv_sec +=  (*(*mList.current).shift).member.delta.tv_sec;
-            (*ts).tv_nsec += (*(*mList.current).shift).member.delta.tv_nsec;
+            ts->tv_sec +=  mList.current->shift->member.delta.tv_sec;
+            ts->tv_nsec += mList.current->shift->member.delta.tv_nsec;
             break;
         case T_MUL:
-            (*ts).tv_sec = (running * (*(*mList.current).shift).member.delta.tv_sec) + (*ts).tv_sec;
+            ts->tv_sec = (running * mList.current->shift->member.delta.tv_sec) + ts->tv_sec;
             break;
     }
-    printf("Shift: %ld, New time: %ld,\n", (*(*mList.current).shift).member.delta.tv_sec, (*ts).tv_sec);
+    printf("Shift: %ld, New time: %ld,\n", mList.current->shift->member.delta.tv_sec, ts->tv_sec);
     return 0;
 }
 
