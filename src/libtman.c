@@ -98,44 +98,57 @@ void __attribute__ ((constructor)) libtman_init(void) {
     printf("Library: My pid is: %d\n", getpid());
 }
 
-int timeControll(struct timespec *ts) {
+int checkMessageInQueue( mqd_t mQ, struct msgList mList) {
     ssize_t bytesRead;
     tmanMSG_t *msg;
-    time_t running = ts->tv_sec - execTime.tv_sec;
-    
-    msg = malloc(MQ_MSGSIZE);
-    if (! msg) {
-        perror("Allocation failed");
+    qNode *new, *this;
+    int counter = 0;
+
+    if (! (msg = malloc(MQ_MSGSIZE))) {
+        errno = ENOMEM;
         return -1;
     }
+
     memset(msg->data, 0, MQ_MSGSIZE);
     bytesRead = mq_receive(mQ, msg->data, MQ_MSGSIZE, NULL);
-    if (bytesRead == -1) {
-        if (errno != EAGAIN) {
-            fprintf(stderr, "Mqueue error: %d\n", errno);
-        }
-    } else {
-        qNode *new = malloc(sizeof(qNode));
-        if (!new) {
-            perror("Memory allocation failed");
+    while (bytesRead != -1) {
+        if ((new = malloc(sizeof(qNode)))) {
+            errno = ENOMEM;
             return -1;
         }
         new->next = NULL;
         new->shift = msg;
-        if (! mList.begin) {
+        if (!mList.begin) {
             mList.begin = new;
         } else {
-            qNode * this;
             this = mList.begin;
             while (this->shift->member.delay.tv_sec < msg->member.delay.tv_sec) {
-                this = this->next;
                 if (!this->next)
                     break;
+                this = this->next;
             }
             new->next = this->next;
             this->next = new;
+            counter++;
         }
+
+        if (!(msg = malloc(MQ_MSGSIZE))) {
+            errno = ENOMEM;
+            return -1;
+        }
+        memset(msg->data, 0, MQ_MSGSIZE);
+        bytesRead = mq_receive(mQ, msg->data, MQ_MSGSIZE, NULL);
     }
+    if ((bytesRead == -1) && (errno != EAGAIN))
+        return -1;
+    free(msg);
+    return counter;
+}
+
+int timeControll(struct timespec *ts) {
+    time_t running = ts->tv_sec - execTime.tv_sec;
+  
+    checkMessageInQueue(mQ, mList);
 
     if (!mList.begin) { /* there is no guidelines to change time */
         return 0;
