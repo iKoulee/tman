@@ -80,6 +80,7 @@ int main(int argc, char **argv) {
     tmanMSG_t msg;
     int childStatus;
     struct mq_attr mqAttr;
+    char *scriptName;
 
     if (argc <= 1) {
         printf("Nothing to do\n");
@@ -93,10 +94,11 @@ int main(int argc, char **argv) {
             {"time-shift", required_argument, NULL, 't'},
             {"command", required_argument, NULL, 'c'},
             {"fuzzer", no_argument, NULL, 'F'},
-            {"help", no_argument, NULL, 'h'}
+            {"help", no_argument, NULL, 'h'},
+            {"file", required_argument, NULL, 'f'}
         };
 
-        static char *shortOpts = "p:t:c:Fh";
+        static char *shortOpts = "p:t:f:c:Fh";
 
         flag = getopt_long(argc, argv, shortOpts, longOpts, &indexPtr);
 
@@ -118,6 +120,9 @@ int main(int argc, char **argv) {
             case 'F':
                 break;
             case 'h':
+                break;
+            case 'f':
+                scriptName = optarg;
                 break;
             default:
                 printUsage(canonicalize_file_name(argv[0]));
@@ -157,10 +162,13 @@ int main(int argc, char **argv) {
                 return 1;
             }
         }
-        int i;
-        for (i=0; environ[i]; i++);
-        printf("Environment: %s\n", environ[i]);
+
+        putenv("LD_PRELOAD=./libtman.so");
         /*
+        int i;
+        for (i=0; environ[i]; i++)
+            printf("Environment: %s\n", environ[i]);
+        
         char *env[] = {"LD_PRELOAD=./libtman.so", NULL};
         */
         switch (arg.we_wordv[0][0]) {
@@ -221,6 +229,7 @@ int main(int argc, char **argv) {
         }
         wordfree(&arg);
     } else {
+        printf("File: %s\n",scriptName);
         printf("Child pid is: %d\n", chpid);
         printf("Waiting for child\n");
 
@@ -239,7 +248,7 @@ int main(int argc, char **argv) {
         }
         memset(msg.data, 0, MQ_MSGSIZE);
         msg.member.delta.tv_sec = 1800;
-        msg.member.delay.tv_sec = 666;
+        msg.member.delay.tv_sec = 0;
         msg.member.type = T_ADD;
         
         if (! mq_send(mQ, msg.data, MQ_MSGSIZE, 0)) {
@@ -264,6 +273,35 @@ int main(int argc, char **argv) {
                 break;
             }
         }
+        
+        memset(msg.data, 0, MQ_MSGSIZE);
+        msg.member.delta.tv_sec = 3600;
+        msg.member.delay.tv_sec = 5;
+        msg.member.type = T_ADD;
+        
+        if (! mq_send(mQ, msg.data, MQ_MSGSIZE, 0)) {
+            switch (errno) {
+                case EAGAIN:
+                    perror("The Queue is full");
+                break;
+                case EBADF:
+                    perror("Invalid Queue");
+                break;
+                case EINTR:
+                    perror("Interupted by signal");
+                break;
+                case EINVAL:
+                    perror("Invalid timeout");
+                break;
+                case EMSGSIZE:
+                    perror("Message is too long");
+                break;
+                case ETIMEDOUT:
+                    perror("Timeout");
+                break;
+            }
+        }
+
 
         waitpid(-1, &childStatus, 0);
         mq_close(mQ);

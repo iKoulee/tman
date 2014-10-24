@@ -42,8 +42,10 @@ void __attribute__ ((constructor)) libtman_init(void) {
     pid_t myPID;
     char mqName[MQ_MAXNAMELENGTH];
 
+    /*
     mList.begin = NULL;
     mList.current = NULL;
+    */
 
     orig_gettimeofday   = dlsym(RTLD_NEXT, "gettimeofday");
     orig_clock_gettime  = dlsym(RTLD_NEXT, "clock_gettime");
@@ -95,13 +97,40 @@ void __attribute__ ((constructor)) libtman_init(void) {
         }
     }
 
-    printf("Library: My pid is: %d\n", getpid());
+    printf("Library: My pid is: %d\n\n", getpid());
 }
 
-int checkMessageInQueue( mqd_t mQ, struct msgList mList) {
+int put2Q(struct msgList *mList, tmanMSG_t *msg) {
+    qNode *new, *this;
+    int counter = 0;
+
+    if (!(new = malloc(sizeof(qNode)))) {
+        errno = ENOMEM;
+        return -1;
+    }
+    memset(new, 0, sizeof(qNode));
+    new->shift = msg;
+
+    if (mList->begin == NULL) {
+        mList->begin = new;
+        mList->current = mList->begin;
+    } else {
+        this = mList->begin;
+        while (this->shift->member.delay.tv_sec < msg->member.delay.tv_sec) {
+            counter++;
+            if (this->next == NULL)
+                break;
+            this = this->next;
+        }
+        new->next = this->next;
+        this->next = new;
+    }
+    return counter;
+}
+
+int checkMessageInQueue( mqd_t mQ) {
     ssize_t bytesRead;
     tmanMSG_t *msg;
-    qNode *new, *this;
     int counter = 0;
 
     if (! (msg = malloc(MQ_MSGSIZE))) {
@@ -112,26 +141,9 @@ int checkMessageInQueue( mqd_t mQ, struct msgList mList) {
     memset(msg->data, 0, MQ_MSGSIZE);
     bytesRead = mq_receive(mQ, msg->data, MQ_MSGSIZE, NULL);
     while (bytesRead != -1) {
-        if ((new = malloc(sizeof(qNode)))) {
-            errno = ENOMEM;
-            return -1;
-        }
-        new->next = NULL;
-        new->shift = msg;
-        if (!mList.begin) {
-            mList.begin = new;
-        } else {
-            this = mList.begin;
-            while (this->shift->member.delay.tv_sec < msg->member.delay.tv_sec) {
-                if (!this->next)
-                    break;
-                this = this->next;
-            }
-            new->next = this->next;
-            this->next = new;
-            counter++;
-        }
-
+        printf("Library: Got MSG:\n - Delay: %ld\n - Type: %d\n - Delta: %ld\n", msg->member.delay.tv_sec,
+                msg->member.type, msg->member.delta.tv_sec);
+        printf("Library: Record inserted on the %dth position\n", put2Q(&mList, msg));
         if (!(msg = malloc(MQ_MSGSIZE))) {
             errno = ENOMEM;
             return -1;
@@ -146,23 +158,39 @@ int checkMessageInQueue( mqd_t mQ, struct msgList mList) {
 }
 
 int timeControll(struct timespec *ts) {
-    time_t running = ts->tv_sec - execTime.tv_sec;
-  
-    checkMessageInQueue(mQ, mList);
+    struct timespec running;
+
+    if ((*orig_clock_gettime)(CLOCK_MONOTONIC, &running)) {
+        printf("clock_gettime failed ... leaving\n");
+        exit(1);
+    }
+
+    running.tv_sec = running.tv_sec - execTime.tv_sec;
+    printf("Library: Running time: %ld\n", running.tv_sec);
+    if (checkMessageInQueue(mQ) == -1) {
+        puts(strerror(errno));
+    }
 
     if (!mList.begin) { /* there is no guidelines to change time */
+        puts("Library: empty list");
         return 0;
     }
 
-    if (!mList.current) { /* if pointer to list isn't set do it */
+    if (!mList.current) { /* better safe than sorry */
         mList.current = mList.begin;
     }
-
+    
     if (mList.current->next) { /* if is time for next record than change it */
-        if ( mList.current->next->shift->member.delay.tv_sec < running ) {
+        printf("Library: Next change in %ld second(s).\n",
+                mList.current->next->shift->member.delay.tv_sec - running.tv_sec);
+        while ( mList.current->next->shift->member.delay.tv_sec < running.tv_sec ) {
             mList.current = mList.current->next;
+            if (!mList.current->next)
+                break;
         }
     }
+    printf("Library: Found time shift: %ld after %ld\n",
+            mList.current->shift->member.delta.tv_sec, mList.current->shift->member.delay.tv_sec);
 
     switch ( mList.current->shift->member.type ) {
         case T_SET:
@@ -178,16 +206,18 @@ int timeControll(struct timespec *ts) {
             ts->tv_nsec += mList.current->shift->member.delta.tv_nsec;
             break;
         case T_MUL:
-            ts->tv_sec = (running * mList.current->shift->member.delta.tv_sec) + ts->tv_sec;
+            ts->tv_sec = (running.tv_sec * mList.current->shift->member.delta.tv_sec) + ts->tv_sec;
             break;
     }
-    printf("Shift: %ld, New time: %ld,\n", mList.current->shift->member.delta.tv_sec, ts->tv_sec);
     return 0;
 }
 
 int clock_gettime (clockid_t clk_id, struct timespec *tp) {
-    if (orig_clock_gettime == NULL)
+    puts("Library: Handling clock_gettime");
+    if (orig_clock_gettime == NULL) {
+        puts("Function: 'clock_gettime' not found\n");
         return -1;
+    }
     if ((*orig_clock_gettime)(clk_id, tp)) {
         printf("clock_gettime failed ... leaving\n");
         return -1;
