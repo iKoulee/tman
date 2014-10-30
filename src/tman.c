@@ -73,6 +73,106 @@ char *findCommandInPath(const char *command) {
     return NULL;
 }
 
+int str2msg(char *command, tmanMSG_t *msg) {
+    int i;
+    struct timespec startTime;
+
+    if ((!command) || (!msg)) {
+        return -1;
+    }
+    memset(msg->data, 0, MQ_MSGSIZE);
+    for (i = 0; command[i] != 0; i++) {
+        switch (command[i]) {
+            case '=':
+                if (msg->member.type)
+                    return -1;
+                msg->member.type = T_SET;
+                break;
+            case '-':
+                if (msg->member.type)
+                    return -1;
+                msg->member.type = T_SUB;
+                break;
+            case '+':
+                if (msg->member.type)
+                    return -1;
+                msg->member.type = T_ADD;
+                break;
+            case 'x':
+                if (msg->member.type)
+                    return -1;
+                msg->member.type = T_MUL;
+                break;
+            case '0':
+                if (msg->member.type) 
+                    msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10;
+                else
+                    msg->member.delay.tv_sec = msg->member.delay.tv_sec * 10;
+                break;
+            case '1':
+                if (msg->member.type) 
+                    msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10 + 1;
+                else
+                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 1;
+                break;
+            case '2':
+                if (msg->member.type) 
+                    msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10 + 2;
+                else
+                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 2;
+                break;
+            case '3':
+                if (msg->member.type) 
+                    msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10 + 3;
+                else
+                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 3;
+                break;
+            case '4':
+                if (msg->member.type) 
+                    msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10 + 4;
+                else
+                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 4;
+                break;
+            case '5':
+                if (msg->member.type) 
+                    msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10 + 5;
+                else
+                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 5;
+                break;
+            case '6':
+                if (msg->member.type) 
+                    msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 6;
+                else
+                msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 6;
+                break;
+            case '7':
+                msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 7;
+                break;
+            case '8':
+                msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 8;
+                break;
+            case '9':
+                msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 9;
+                break;
+            case '@':
+                if (i > 0)
+                    return -1;
+                if (clock_gettime(CLOCK_REALTIME, &startTime) != 0)
+                    puts("Caaaaaaaaaaas!\n");
+                    return -1;
+            default:
+                return -1;
+        }
+    }
+    if (command[0] == '@') {
+        msg->member.delay.tv_sec = startTime.tv_sec - msg->member.delay.tv_sec;
+    }
+    printf("Delay: %ld\n", msg->member.delay.tv_sec);
+    printf("Shift: %ld\n", msg->member.delta.tv_sec);
+    printf("Type: %d\n", msg->member.type);
+    return 0;
+}
+
 int main(int argc, char **argv) {
     char *command = NULL;
     char mqName[MQ_MAXNAMELENGTH];
@@ -102,7 +202,6 @@ int main(int argc, char **argv) {
 
         flag = getopt_long(argc, argv, shortOpts, longOpts, &indexPtr);
 
-        printf("Args: %d\nFlag: %d(%c)\nOptArg: %s\nIndex: %d\noptind=%d\n\n", argc, flag, flag, optarg, indexPtr, optind);
 
         if (flag == -1)
             break;
@@ -112,7 +211,10 @@ int main(int argc, char **argv) {
                 printf("Pid %s\n", optarg);
                 break;
             case 't':
-                printf("Time shift %s\n", optarg);
+                if (str2msg(optarg,&msg) == -1) {
+                    perror("Unable to parse time shift specification");
+                    exit(1);
+                }
                 break;
             case 'c':
                 command = optarg;
@@ -233,73 +335,20 @@ int main(int argc, char **argv) {
         printf("Child pid is: %d\n", chpid);
         printf("Waiting for child\n");
 
-/*
- * Open queue
- */
-
+/* Open the kernel message qeue */
         mqAttr.mq_msgsize = MQ_MSGSIZE;
         mqAttr.mq_maxmsg = MQ_MAXMSG;
 
         snprintf(mqName, MQ_MAXNAMELENGTH, "%s.%d", MQ_PREFIX, chpid);
         mQ = mq_open(mqName, O_CREAT | O_WRONLY, 0600, &mqAttr);
         if (mQ == -1) {
-            perror("Cannot open message queue.\n");
-            exit(128+mQ);
+            printf("Error %d: %s\n", errno, strerror(errno));
+            exit(1);
         }
-        memset(msg.data, 0, MQ_MSGSIZE);
-        msg.member.delta.tv_sec = 1800;
-        msg.member.delay.tv_sec = 0;
-        msg.member.type = T_ADD;
-        
-        if (! mq_send(mQ, msg.data, MQ_MSGSIZE, 0)) {
-            switch (errno) {
-                case EAGAIN:
-                    perror("The Queue is full");
-                break;
-                case EBADF:
-                    perror("Invalid Queue");
-                break;
-                case EINTR:
-                    perror("Interupted by signal");
-                break;
-                case EINVAL:
-                    perror("Invalid timeout");
-                break;
-                case EMSGSIZE:
-                    perror("Message is too long");
-                break;
-                case ETIMEDOUT:
-                    perror("Timeout");
-                break;
-            }
-        }
-        
-        memset(msg.data, 0, MQ_MSGSIZE);
-        msg.member.delta.tv_sec = 3600;
-        msg.member.delay.tv_sec = 5;
-        msg.member.type = T_ADD;
-        
-        if (! mq_send(mQ, msg.data, MQ_MSGSIZE, 0)) {
-            switch (errno) {
-                case EAGAIN:
-                    perror("The Queue is full");
-                break;
-                case EBADF:
-                    perror("Invalid Queue");
-                break;
-                case EINTR:
-                    perror("Interupted by signal");
-                break;
-                case EINVAL:
-                    perror("Invalid timeout");
-                break;
-                case EMSGSIZE:
-                    perror("Message is too long");
-                break;
-                case ETIMEDOUT:
-                    perror("Timeout");
-                break;
-            }
+
+        if (mq_send(mQ, msg.data, MQ_MSGSIZE, 0) == -1) {
+            printf("Error %d: %s\n", errno, strerror(errno));
+            exit(1);
         }
 
 
