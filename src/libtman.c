@@ -189,25 +189,28 @@ int timeControll(struct timespec *ts) {
                 break;
         }
     }
-    printf("Library: Found time shift: %ld after %ld\n",
-            mList.current->shift->member.delta.tv_sec, mList.current->shift->member.delay.tv_sec);
 
-    switch ( mList.current->shift->member.type ) {
-        case T_SET:
-            ts->tv_sec = mList.current->shift->member.delta.tv_sec;
-            ts->tv_nsec = mList.current->shift->member.delta.tv_nsec;
-            break;
-        case T_SUB:
-            ts->tv_sec -=  mList.current->shift->member.delta.tv_sec;
-            ts->tv_nsec -= mList.current->shift->member.delta.tv_nsec;
-            break;
-        case T_ADD:
-            ts->tv_sec +=  mList.current->shift->member.delta.tv_sec;
-            ts->tv_nsec += mList.current->shift->member.delta.tv_nsec;
-            break;
-        case T_MUL:
-            ts->tv_sec = (running.tv_sec * mList.current->shift->member.delta.tv_sec) + ts->tv_sec;
-            break;
+    if (mList.current->shift->member.delay.tv_sec <= running.tv_sec) {
+        printf("Library: Found time shift: %ld after %ld\n",
+                mList.current->shift->member.delta.tv_sec, mList.current->shift->member.delay.tv_sec);
+
+        switch ( mList.current->shift->member.type ) {
+            case T_SET:
+                ts->tv_sec = mList.current->shift->member.delta.tv_sec;
+                ts->tv_nsec = mList.current->shift->member.delta.tv_nsec;
+                break;
+            case T_SUB:
+                ts->tv_sec -=  mList.current->shift->member.delta.tv_sec;
+                ts->tv_nsec -= mList.current->shift->member.delta.tv_nsec;
+                break;
+            case T_ADD:
+                ts->tv_sec +=  mList.current->shift->member.delta.tv_sec;
+                ts->tv_nsec += mList.current->shift->member.delta.tv_nsec;
+                break;
+            case T_MUL:
+                ts->tv_sec = (running.tv_sec * mList.current->shift->member.delta.tv_sec) + ts->tv_sec;
+                break;
+        }
     }
     return 0;
 }
