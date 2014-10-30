@@ -143,23 +143,36 @@ int str2msg(char *command, tmanMSG_t *msg) {
                 if (msg->member.type) 
                     msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 6;
                 else
-                msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 6;
+                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 6;
                 break;
             case '7':
-                msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 7;
+                if (msg->member.type) 
+                    msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 7;
+                else
+                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 7;
                 break;
             case '8':
-                msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 8;
+                if (msg->member.type) 
+                    msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 8;
+                else
+                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 8;
                 break;
             case '9':
-                msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 9;
+                if (msg->member.type) 
+                    msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 9;
+                else
+                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 9;
                 break;
             case '@':
                 if (i > 0)
                     return -1;
                 if (clock_gettime(CLOCK_REALTIME, &startTime) != 0)
-                    puts("Caaaaaaaaaaas!\n");
                     return -1;
+            case ' ':
+            case '\t':
+            case '\n':
+                /* Whitespace just ignore it! */
+                break;
             default:
                 return -1;
         }
@@ -167,9 +180,6 @@ int str2msg(char *command, tmanMSG_t *msg) {
     if (command[0] == '@') {
         msg->member.delay.tv_sec = startTime.tv_sec - msg->member.delay.tv_sec;
     }
-    printf("Delay: %ld\n", msg->member.delay.tv_sec);
-    printf("Shift: %ld\n", msg->member.delta.tv_sec);
-    printf("Type: %d\n", msg->member.type);
     return 0;
 }
 
@@ -180,7 +190,11 @@ int main(int argc, char **argv) {
     tmanMSG_t msg;
     int childStatus;
     struct mq_attr mqAttr;
-    char *scriptName;
+    char *scriptName = NULL;
+    FILE *fp;
+    char * line = NULL;
+    size_t len = 0;
+    ssize_t read;
 
     if (argc <= 1) {
         printf("Nothing to do\n");
@@ -229,6 +243,11 @@ int main(int argc, char **argv) {
             default:
                 printUsage(canonicalize_file_name(argv[0]));
         }
+    }
+
+    if ((!scriptName) && (!msg.member.type)) {
+        printUsage(argv[0]);
+        exit(1);
     }
 
     int chpid; 
@@ -335,22 +354,41 @@ int main(int argc, char **argv) {
         printf("Child pid is: %d\n", chpid);
         printf("Waiting for child\n");
 
-/* Open the kernel message qeue */
+        /* Open the kernel message qeue */
         mqAttr.mq_msgsize = MQ_MSGSIZE;
         mqAttr.mq_maxmsg = MQ_MAXMSG;
 
         snprintf(mqName, MQ_MAXNAMELENGTH, "%s.%d", MQ_PREFIX, chpid);
         mQ = mq_open(mqName, O_CREAT | O_WRONLY, 0600, &mqAttr);
         if (mQ == -1) {
-            printf("Error %d: %s\n", errno, strerror(errno));
-            exit(1);
+            fprintf(stderr, "Error %d: %s\n", errno, strerror(errno));
+            exit(EXIT_FAILURE);
         }
 
-        if (mq_send(mQ, msg.data, MQ_MSGSIZE, 0) == -1) {
-            printf("Error %d: %s\n", errno, strerror(errno));
-            exit(1);
+        if (msg.member.type) {
+            if (mq_send(mQ, msg.data, MQ_MSGSIZE, 0) == -1) {
+                fprintf(stderr, "Error %d: %s\n", errno, strerror(errno));
+                exit(EXIT_FAILURE);
+            }
         }
 
+        if (scriptName) {
+            fp = fopen(scriptName, "r");
+            if (fp == NULL) {
+                fprintf(stderr, "Error %d: %s\n", errno, strerror(errno));
+                exit(EXIT_FAILURE);
+            }
+
+            while ((read = getline(&line, &len, fp)) != -1) {
+                if (str2msg(line, &msg) != -1) {
+                    if (mq_send(mQ, msg.data, MQ_MSGSIZE, 0) == -1) {
+                        fprintf(stderr, "Error %d: %s\n", errno, strerror(errno));
+                        exit(EXIT_FAILURE);
+                    }
+                }
+            }
+            
+        }
 
         waitpid(-1, &childStatus, 0);
         mq_close(mQ);
@@ -358,5 +396,5 @@ int main(int argc, char **argv) {
         printf("Exiting\n");
         exit(childStatus);
     }
-    return 0;
+    return EXIT_SUCCESS;
 }
