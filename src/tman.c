@@ -178,7 +178,7 @@ int str2msg(char *command, tmanMSG_t *msg) {
         }
     }
     if (command[0] == '@') {
-        msg->member.delay.tv_sec = startTime.tv_sec - msg->member.delay.tv_sec;
+        msg->member.delay.tv_sec = msg->member.delay.tv_sec - startTime.tv_sec;
     }
     return 0;
 }
