@@ -111,19 +111,27 @@ int put2Q(struct msgList *mList, tmanMSG_t *msg) {
     memset(new, 0, sizeof(qNode));
     new->shift = msg;
 
-    if (mList->begin == NULL) {
+    if (!mList->begin) {
         mList->begin = new;
         mList->current = mList->begin;
     } else {
         this = mList->begin;
-        while (this->shift->member.delay.tv_sec < msg->member.delay.tv_sec) {
-            counter++;
-            if (this->next == NULL)
+        while (this->next) {
+            if (this->next->shift->member.delay.tv_sec >= msg->member.delay.tv_sec) {
                 break;
+            }
             this = this->next;
+            counter++;
         }
-        new->next = this->next;
-        this->next = new;
+        if ((mList->begin == this) && (this->shift->member.delay.tv_sec >= msg->member.delay.tv_sec)) {
+            if (mList->current == mList->begin)
+                mList->current = new;
+            mList->begin = new;
+            new->next = this;
+        } else {
+            new->next = this->next;
+            this->next = new;
+        }
     }
     return counter;
 }
@@ -141,8 +149,8 @@ int checkMessageInQueue( mqd_t mQ) {
     memset(msg->data, 0, MQ_MSGSIZE);
     bytesRead = mq_receive(mQ, msg->data, MQ_MSGSIZE, NULL);
     while (bytesRead != -1) {
-        printf("Library: Got MSG:\n - Delay: %ld\n - Type: %d\n - Delta: %ld\n", msg->member.delay.tv_sec,
-                msg->member.type, msg->member.delta.tv_sec);
+        printf("Library: Got MSG:\n - Delay: %ld\n - Type: %d\n - Delta: %ld\n",
+                msg->member.delay.tv_sec, msg->member.type, msg->member.delta.tv_sec);
         printf("Library: Record inserted on the %dth position\n", put2Q(&mList, msg));
         if (!(msg = malloc(MQ_MSGSIZE))) {
             errno = ENOMEM;
