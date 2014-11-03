@@ -1,1 +1,2 @@
-fork can fail: Fix it!
+BUG: segfault with unknow argument
+?BUG: missing environment variables (amahdal@redhat.com)

@@ -28,21 +28,6 @@ void printUsage(char *progName) {
     puts("\t-p <pid>\tManipulate time on existing process");
     puts("\t-t <time>\tTime manipulation\n");
 }
-/*
-char ** tokenize(char *input) {
-    int i = 0;
-    int j = 0;
-    static int bookmark[64];
-
-    while (input[i]) {
-        if (!isspace(input[i]) && (i) && (isspace(input[i-1]))) {
-            bookmark[j++] = i;
-        }
-        i++;
-        printf("bookmark[%d]=%d(%c/%d),input[%d]=%c\n\n", j, bookmark[j], input[bookmark[j-1]], isspace(input[bookmark[j-1]]), i, input[i]);
-    }
-}
-*/
 
 char *findCommandInPath(const char *command) {
     char const *delim = ":";
@@ -72,6 +57,7 @@ char *findCommandInPath(const char *command) {
     }
     return NULL;
 }
+
 
 int str2msg(char *command, tmanMSG_t *msg) {
     int i;
@@ -236,6 +222,7 @@ int main(int argc, char **argv) {
             case 'F':
                 break;
             case 'h':
+                printUsage(argv[0]);
                 break;
             case 'f':
                 scriptName = optarg;
@@ -251,7 +238,10 @@ int main(int argc, char **argv) {
     }
 
     int chpid; 
-    if (! (chpid = fork())) {
+    if ((chpid = fork()) == -1) {
+        fprintf(stderr, "Error %d: %s\n", errno, strerror(errno));
+        exit(EXIT_FAILURE);
+    } else if ( chpid != 0 ) {
         wordexp_t arg;
         if (command) {
             switch (wordexp(command, &arg, WRDE_SHOWERR)) {
@@ -273,7 +263,6 @@ int main(int argc, char **argv) {
                     perror("Syntax error");
                     return 1;
             }
-            printf("argc: %ld\nCmdName: %s\n", arg.we_wordc, arg.we_wordv[0]);
         } else {
             if (argc > optind) {
                 arg.we_wordc = argc - optind;
@@ -285,13 +274,6 @@ int main(int argc, char **argv) {
         }
 
         putenv("LD_PRELOAD=./libtman.so");
-        /*
-        int i;
-        for (i=0; environ[i]; i++)
-            printf("Environment: %s\n", environ[i]);
-        
-        char *env[] = {"LD_PRELOAD=./libtman.so", NULL};
-        */
         switch (arg.we_wordv[0][0]) {
             case '.':
             case '/':
@@ -346,14 +328,12 @@ int main(int argc, char **argv) {
                 perror("Executable is open for writing");
                 break;
             default:
-                error(0,errno,"Error: %d", errno);
+                fprintf(stderr, "Error %d: %s\n", errno, strerror(errno));
+                exit(EXIT_FAILURE);
         }
         wordfree(&arg);
     } else {
-        printf("File: %s\n",scriptName);
-        printf("Child pid is: %d\n", chpid);
-        printf("Waiting for child\n");
-
+        
         /* Open the kernel message qeue */
         mqAttr.mq_msgsize = MQ_MSGSIZE;
         mqAttr.mq_maxmsg = MQ_MAXMSG;
