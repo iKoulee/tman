@@ -15,6 +15,7 @@
 #include <error.h>
 #include <ctype.h>
 #include <wordexp.h>
+#include <libgen.h>
 #include "tman.h"
 
 void printUsage(char *progName) {
@@ -183,58 +184,56 @@ int main(int argc, char **argv) {
     ssize_t read;
 
     if (argc <= 1) {
-        printf("Nothing to do\n");
-        return 1;
+        fprintf(stderr,"Nothing to do!\n");
+        exit(EXIT_FAILURE);
     }
     while (1) {
-        static int indexPtr = 0;
-        static int flag;
+        int indexPtr = 0;
+        int flag;
         static struct option longOpts[] = {
             {"pid", required_argument, NULL, 'p'},
             {"time-shift", required_argument, NULL, 't'},
             {"command", required_argument, NULL, 'c'},
             {"fuzzer", no_argument, NULL, 'F'},
             {"help", no_argument, NULL, 'h'},
-            {"file", required_argument, NULL, 'f'}
+            {"file", required_argument, NULL, 'f'},
+            {NULL, 0, 0, 0}
         };
 
         static char *shortOpts = "p:t:f:c:Fh";
-
         flag = getopt_long(argc, argv, shortOpts, longOpts, &indexPtr);
-
 
         if (flag == -1)
             break;
 
         switch (flag) {
-            case 'p':
-                printf("Pid %s\n", optarg);
-                break;
             case 't':
                 if (str2msg(optarg,&msg) == -1) {
-                    perror("Unable to parse time shift specification");
-                    exit(1);
+                    fprintf(stderr, "Unable to parse time shift specification: '%s'.\n", optarg);
+                    exit(EXIT_FAILURE);
                 }
                 break;
             case 'c':
                 command = optarg;
                 break;
-            case 'F':
-                break;
             case 'h':
-                printUsage(argv[0]);
-                break;
+                printUsage(basename(argv[0]));
+                exit(EXIT_SUCCESS);
             case 'f':
                 scriptName = optarg;
                 break;
+            case '?':
+                printUsage(basename(argv[0]));
+                exit(EXIT_FAILURE);
             default:
-                printUsage(canonicalize_file_name(argv[0]));
+                fprintf(stderr, "This feature hasn't been implemented yet.\n");
+                exit(EXIT_FAILURE);
         }
     }
 
     if ((!scriptName) && (!msg.member.type)) {
         printUsage(argv[0]);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     int chpid; 
