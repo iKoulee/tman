@@ -29,6 +29,7 @@ static int (*orig_gettimeofday)(struct timeval *, struct timezone *);
 
 /* time.h */
 static int (*orig_clock_gettime)(clockid_t, struct timespec *);
+static time_t (*orig_time)(time_t *res);
 
 mqd_t mQ;
 struct timespec execTime;
@@ -42,19 +43,15 @@ void __attribute__ ((constructor)) libtman_init(void) {
     pid_t myPID;
     char mqName[MQ_MAXNAMELENGTH];
 
-    /*
-    mList.begin = NULL;
-    mList.current = NULL;
-    */
-
     orig_gettimeofday   = dlsym(RTLD_NEXT, "gettimeofday");
     orig_clock_gettime  = dlsym(RTLD_NEXT, "clock_gettime");
+    orig_time           = dlsym(RTLD_NEXT, "time");
 
     if (orig_clock_gettime == NULL)
-        exit(1);
+        exit(EXIT_FAILURE);
     if ((*orig_clock_gettime)(CLOCK_MONOTONIC, &execTime)) {
-        printf("clock_gettime failed ... leaving\n");
-        exit(1);
+        fprintf(stderr,"Cannot get current time.");
+        exit(EXIT_FAILURE);
     }
 
 /*
@@ -228,9 +225,8 @@ int timeControll(struct timespec *ts) {
  * Wraped functions
  */
 
-int clock_gettime (clockid_t clk_id, struct timespec *tp) {
-    if (orig_clock_gettime == NULL) {
-        fprintf(stderr,"Function 'clock_gettime' doesn't exist.");
+int clock_gettime(clockid_t clk_id, struct timespec *tp) {
+    if (!orig_clock_gettime) {
         return -1;
     }
     if ((*orig_clock_gettime)(clk_id, tp)) {
@@ -239,8 +235,11 @@ int clock_gettime (clockid_t clk_id, struct timespec *tp) {
     return timeControll(tp);
 }
 
-int gettimeofday (struct timeval *tv, struct timezone *tz) {
+int gettimeofday(struct timeval *tv, struct timezone *tz) {
     struct timespec ts;
+    if (!orig_gettimeofday) {
+        return 1;
+    }
     if ((*orig_gettimeofday)(tv, tz)) {
         return -1;
     }
@@ -251,3 +250,23 @@ int gettimeofday (struct timeval *tv, struct timezone *tz) {
     TIMESPEC_TO_TIMEVAL(tv, &ts);
     return 0;
 }
+
+time_t time(time_t *res) {
+    time_t myTime;
+    struct timespec ts;
+    if (!orig_time) {
+        return -1;
+    }
+    if ((myTime = (*orig_time)(res)) == -1) {
+        return -1;
+    }
+    ts.tv_sec = myTime;
+    if (timeControll(&ts)) {
+        return -1;
+    }
+    if (res) {
+        *res = ts.tv_sec;
+    }
+    return (time_t)ts.tv_sec;
+}
+

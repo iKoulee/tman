@@ -11,6 +11,7 @@
 int main(int argc, char **argv) {
     struct timespec ts;
     struct timeval tv;
+    time_t myTime;
     long int count, i;
 
     if (argc < 2) {
@@ -31,6 +32,13 @@ int main(int argc, char **argv) {
         } else {
             puts("FAIL\n");
         }
+        printf("Calling 'time(&myTime)': ");
+        if ((time(&myTime)) != -1) {
+            printf("%ld\n", myTime);
+        } else {
+            puts("FAIL\n");
+        }
+
         if ( 0 != sleep(SLEEP_INTERVAL) )
             break;
     }
