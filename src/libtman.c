@@ -169,18 +169,18 @@ int timeControll(struct timespec *ts) {
     struct timespec running;
 
     if ((*orig_clock_gettime)(CLOCK_MONOTONIC, &running)) {
-        printf("clock_gettime failed ... leaving\n");
-        exit(1);
+        return -1;
     }
 
     running.tv_sec = running.tv_sec - execTime.tv_sec;
-    printf("Library: Running time: %ld\n", running.tv_sec);
+
     if (checkMessageInQueue(mQ) == -1) {
-        puts(strerror(errno));
+        fprintf(stderr, "Error %d: %s\n", errno, strerror(errno));
+        return -1;
     }
 
     if (!mList.begin) { /* there is no guidelines to change time */
-        puts("Library: empty list");
+        puts("Qeue is empty");
         return 0;
     }
 
@@ -189,8 +189,9 @@ int timeControll(struct timespec *ts) {
     }
     
     if (mList.current->next) { /* if is time for next record than change it */
-        printf("Library: Next change in %ld second(s).\n",
+/*        printf("Library: Next change in %ld second(s).\n",
                 mList.current->next->shift->member.delay.tv_sec - running.tv_sec);
+*/
         while ( mList.current->next->shift->member.delay.tv_sec < running.tv_sec ) {
             mList.current = mList.current->next;
             if (!mList.current->next)
@@ -199,9 +200,9 @@ int timeControll(struct timespec *ts) {
     }
 
     if (mList.current->shift->member.delay.tv_sec <= running.tv_sec) {
-        printf("Library: Found time shift: %ld after %ld\n",
+/*        printf("Library: Found time shift: %ld after %ld\n",
                 mList.current->shift->member.delta.tv_sec, mList.current->shift->member.delay.tv_sec);
-
+*/
         switch ( mList.current->shift->member.type ) {
             case T_SET:
                 ts->tv_sec = mList.current->shift->member.delta.tv_sec;
@@ -223,20 +224,30 @@ int timeControll(struct timespec *ts) {
     return 0;
 }
 
+/*
+ * Wraped functions
+ */
+
 int clock_gettime (clockid_t clk_id, struct timespec *tp) {
-    puts("Library: Handling clock_gettime");
     if (orig_clock_gettime == NULL) {
-        puts("Function: 'clock_gettime' not found\n");
+        fprintf(stderr,"Function 'clock_gettime' doesn't exist.");
         return -1;
     }
     if ((*orig_clock_gettime)(clk_id, tp)) {
-        printf("clock_gettime failed ... leaving\n");
         return -1;
     }
     return timeControll(tp);
 }
 
 int gettimeofday (struct timeval *tv, struct timezone *tz) {
-    printf("Call gettimeofday\n");
-    return (*orig_gettimeofday)(tv, tz);
+    struct timespec ts;
+    if ((*orig_gettimeofday)(tv, tz)) {
+        return -1;
+    }
+    TIMEVAL_TO_TIMESPEC(tv, &ts);
+    if (timeControll(&ts)) {
+        return -1;
+    }
+    TIMESPEC_TO_TIMEVAL(tv, &ts);
+    return 0;
 }

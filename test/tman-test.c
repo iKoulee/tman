@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include <time.h>
+#include <sys/time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -8,7 +9,8 @@
 #define SLEEP_INTERVAL 1
 
 int main(int argc, char **argv) {
-    struct timespec time;
+    struct timespec ts;
+    struct timeval tv;
     long int count, i;
 
     if (argc < 2) {
@@ -17,9 +19,18 @@ int main(int argc, char **argv) {
 
     count = strtol(argv[1], NULL, 0);
     for (i = 0; i < count; i++) {
-        printf("Return code: %d\n", clock_gettime(CLOCK_REALTIME, &time));
-        printf("Second since epoch: %ld\n", time.tv_sec);
-        printf("Current local time and date: %s\n", asctime(localtime(&time.tv_sec)));
+        printf("Calling 'clock_gettime(CLOCK_REALTIME, &time)': ");
+        if (! (clock_gettime(CLOCK_REALTIME, &ts))) {
+            printf("%ld\n", ts.tv_sec);
+        } else {
+            puts("FAIL\n");
+        }
+        printf("Calling 'gettimeofday(&tv,NULL)': ");
+        if (! (gettimeofday(&tv,NULL))) {
+            printf("%ld\n", tv.tv_sec);
+        } else {
+            puts("FAIL\n");
+        }
         if ( 0 != sleep(SLEEP_INTERVAL) )
             break;
     }

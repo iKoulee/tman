@@ -240,7 +240,7 @@ int main(int argc, char **argv) {
     if ((chpid = fork()) == -1) {
         fprintf(stderr, "Error %d: %s\n", errno, strerror(errno));
         exit(EXIT_FAILURE);
-    } else if ( chpid != 0 ) {
+    } else if ( chpid == 0 ) {
         wordexp_t arg;
         if (command) {
             switch (wordexp(command, &arg, WRDE_SHOWERR)) {
@@ -348,6 +348,8 @@ int main(int argc, char **argv) {
             if (mq_send(mQ, msg.data, MQ_MSGSIZE, 0) == -1) {
                 fprintf(stderr, "Error %d: %s\n", errno, strerror(errno));
                 exit(EXIT_FAILURE);
+            } else {
+                printf("MSG send sucessfully: %d\n", msg.member.type);
             }
         }
 
