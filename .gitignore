@@ -1,0 +1,5 @@
+test/tman-test
+src/tman
+src/libtman.so
+*~
+*.swp
