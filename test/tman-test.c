@@ -45,19 +45,19 @@ int main(int argc, char **argv) {
     for (i = 0; i < count; i++) {
         printf("Calling 'clock_gettime(CLOCK_REALTIME, &time)': ");
         if (! (clock_gettime(CLOCK_REALTIME, &ts))) {
-            printf("%ld\n", ts.tv_sec);
+            printf("%ld = %s\n", ts.tv_sec, asctime(localtime(&ts.tv_sec)));
         } else {
             puts("FAIL\n");
         }
         printf("Calling 'gettimeofday(&tv,NULL)': ");
         if (! (gettimeofday(&tv,NULL))) {
-            printf("%ld\n", tv.tv_sec);
+            printf("%ld = %s\n", tv.tv_sec, asctime(localtime(&tv.tv_sec)));
         } else {
             puts("FAIL\n");
         }
         printf("Calling 'time(&myTime)': ");
         if ((time(&myTime)) != -1) {
-            printf("%ld\n", myTime);
+            printf("%ld = %s\n", myTime, asctime(localtime(&myTime)));
         } else {
             puts("FAIL\n");
         }

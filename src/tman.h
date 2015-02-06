@@ -39,6 +39,7 @@ typedef union {
 #define T_SUB 2
 #define T_ADD 4
 #define T_MUL 8
+#define T_MOV 16
 
 #define MQ_MSGSIZE sizeof(tmanMSG_t)
 #define MQ_MAXMSG 5

@@ -39,6 +39,7 @@
 #include <ctype.h>
 #include <wordexp.h>
 #include <libgen.h>
+#include <math.h>
 #include "tman.h"
 
 void printUsage(char *progName) {
@@ -86,10 +87,13 @@ char *findCommandInPath(const char *command) {
 int str2msg(char *command, tmanMSG_t *msg) {
     int i;
     struct timespec startTime;
+    int point = 0;
 
     if ((!command) || (!msg)) {
         return -1;
     }
+    startTime.tv_sec = 0;
+    startTime.tv_nsec = 0;
     memset(msg->data, 0, MQ_MSGSIZE);
     for (i = 0; command[i] != 0; i++) {
         switch (command[i]) {
@@ -97,87 +101,59 @@ int str2msg(char *command, tmanMSG_t *msg) {
                 if (msg->member.type)
                     return -1;
                 msg->member.type = T_SET;
+                point = 0;
                 break;
+            case '@':
+                if (msg->member.type)
+                    return -1;
+                if (clock_gettime(CLOCK_REALTIME, &startTime) != 0)
+                    return -1;
+                point = 0;
             case '-':
                 if (msg->member.type)
                     return -1;
                 msg->member.type = T_SUB;
+                point = 0;
                 break;
             case '+':
                 if (msg->member.type)
                     return -1;
                 msg->member.type = T_ADD;
+                point = 0;
                 break;
             case 'x':
                 if (msg->member.type)
                     return -1;
                 msg->member.type = T_MUL;
+                point = 0;
                 break;
             case '0':
-                if (msg->member.type) 
-                    msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10;
-                else
-                    msg->member.delay.tv_sec = msg->member.delay.tv_sec * 10;
-                break;
             case '1':
-                if (msg->member.type) 
-                    msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10 + 1;
-                else
-                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 1;
-                break;
             case '2':
-                if (msg->member.type) 
-                    msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10 + 2;
-                else
-                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 2;
-                break;
             case '3':
-                if (msg->member.type) 
-                    msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10 + 3;
-                else
-                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 3;
-                break;
             case '4':
-                if (msg->member.type) 
-                    msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10 + 4;
-                else
-                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 4;
-                break;
             case '5':
-                if (msg->member.type) 
-                    msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10 + 5;
-                else
-                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 5;
-                break;
             case '6':
-                if (msg->member.type) 
-                    msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 6;
-                else
-                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 6;
-                break;
             case '7':
-                if (msg->member.type) 
-                    msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 7;
-                else
-                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 7;
-                break;
             case '8':
-                if (msg->member.type) 
-                    msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 8;
-                else
-                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 8;
-                break;
             case '9':
-                if (msg->member.type) 
-                    msg->member.delta.tv_sec = (msg->member.delta.tv_sec * 10) + 9;
+                if (msg->member.type)
+                    if (point) {
+                        msg->member.delta.tv_nsec = msg->member.delta.tv_nsec + (command[i] - 48) * (int) pow(10,point--);
+                        printf("%d = pow(10,%d+1)\n", (int)  pow(10,point+1), point);
+                        printf("nsec + (%d - 48) * %d\n", command[i], (int) pow(10,point+1));
+                    } else
+                        msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10 + command[i] - 48;
                 else
-                    msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + 9;
+                    if (point)
+                        msg->member.delay.tv_nsec = msg->member.delay.tv_nsec + (command[i] - 48) * (int) pow(10,point--);
+                    else
+                        msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + command[i] - 48;
                 break;
-            case '@':
-                if (i > 0)
-                    return -1;
-                if (clock_gettime(CLOCK_REALTIME, &startTime) != 0)
-                    return -1;
+            case '.':
+            case ',':
+                point = 8;
+                break;
             case ' ':
             case '\t':
             case '\n':
@@ -187,8 +163,9 @@ int str2msg(char *command, tmanMSG_t *msg) {
                 return -1;
         }
     }
-    if (command[0] == '@') {
-        msg->member.delay.tv_sec = msg->member.delay.tv_sec - startTime.tv_sec;
+    if (startTime.tv_sec) {
+        msg->member.delta.tv_sec = msg->member.delta.tv_sec - startTime.tv_sec;
+        printf("Setting delay to: %ld\n", msg->member.delta.tv_sec);
     }
     return 0;
 }
