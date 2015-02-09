@@ -109,6 +109,8 @@ int str2msg(char *command, tmanMSG_t *msg) {
                 if (clock_gettime(CLOCK_REALTIME, &startTime) != 0)
                     return -1;
                 point = 0;
+                msg->member.type = T_MOV;
+                break;
             case '-':
                 if (msg->member.type)
                     return -1;
@@ -165,7 +167,6 @@ int str2msg(char *command, tmanMSG_t *msg) {
     }
     if (startTime.tv_sec) {
         msg->member.delta.tv_sec = msg->member.delta.tv_sec - startTime.tv_sec;
-        printf("Setting delay to: %ld\n", msg->member.delta.tv_sec);
     }
     return 0;
 }

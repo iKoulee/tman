@@ -43,6 +43,7 @@ int main(int argc, char **argv) {
 
     count = strtol(argv[1], NULL, 0);
     for (i = 0; i < count; i++) {
+        printf("(%ld)=============================================================================\n",i);
         printf("Calling 'clock_gettime(CLOCK_REALTIME, &time)': ");
         if (! (clock_gettime(CLOCK_REALTIME, &ts))) {
             printf("%ld = %s\n", ts.tv_sec, asctime(localtime(&ts.tv_sec)));
