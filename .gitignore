@@ -1,5 +1,6 @@
-test/tman-test
 src/tman
 src/libtman.so
+src/sidekick
 *~
 *.swp
+*.o

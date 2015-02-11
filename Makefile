@@ -1,11 +1,10 @@
-all: build-tman build-test
+all: clean build test
 
 clean:
 	$(MAKE) -C src clean
-	$(MAKE) -C test clean
 
-build-tman:
-	$(MAKE) -C src all
+build:
+	$(MAKE) -C src build
 
-build-test:
+test:
 	$(MAKE) -C test all
