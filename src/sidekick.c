@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <unistd.h>
+#include <locale.h>
 
 #define DEFAULT_SLEEP_INTERVAL 1
 #define TIME_STRING_BUFFER_SIZE 1024
@@ -38,6 +39,35 @@
 
 static int verbose = 0;
 static int humanize = 0;
+static char *locale = NULL;
+
+void printHumanized(time_t seconds) {
+    char *sBuffer = malloc(TIME_STRING_BUFFER_SIZE);
+    if (!sBuffer) {
+        fputs("Memmory allocation failed!", stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    struct tm tmBuffer;
+
+    if (!localtime_r(&seconds, &tmBuffer))
+        exit(EXIT_FAILURE);
+
+    if (! locale) {
+        locale = getenv("LC_TIME");
+    }
+    if ( locale ) {
+        if (! setlocale(LC_TIME,locale)) {
+            fprintf(stderr,"Unable to set locale to '%s'\n", locale);
+        }
+    }
+
+    if (!strftime(sBuffer, TIME_STRING_BUFFER_SIZE, "%c", &tmBuffer))
+        exit(EXIT_FAILURE);
+
+    printf("%s\n", sBuffer);
+    free(sBuffer);
+}
 
 int main(int argc, char **argv) {
     struct timespec ts;
@@ -86,13 +116,6 @@ int main(int argc, char **argv) {
         }
     }
 
-    char *sBuffer = malloc(TIME_STRING_BUFFER_SIZE);
-    if (!sBuffer) {
-        fputs("Memmory allocation failed!", stderr);
-        return EXIT_FAILURE;
-    }
-
-    struct tm tmBuffer;
     while (1) {
         if (fMask & MASK_CLOCK_GETTIME) {
             if ( -1 != clock_gettime(CLOCK_REALTIME, &ts)) {
@@ -100,13 +123,7 @@ int main(int argc, char **argv) {
                     fputs("clock_gettime(CLOCK_REALTIME...)  = ", stdout);
                 }
                 if (humanize) {
-                    if (!localtime_r(&ts.tv_sec, &tmBuffer))
-                        return EXIT_FAILURE;
-
-                    if (!strftime(sBuffer, TIME_STRING_BUFFER_SIZE, "%c", &tmBuffer))
-                        return EXIT_FAILURE;
-
-                    printf("%s\n", sBuffer);
+                    printHumanized(ts.tv_sec);
                 } else {
                     printf("%ld.%ld\n", ts.tv_sec, ts.tv_nsec);
                 }
@@ -119,7 +136,7 @@ int main(int argc, char **argv) {
                     fputs("gettimeofday(...)  = ", stdout);
                 }
                 if (humanize) {
-                    printf("%s", ctime(&tv.tv_sec));
+                    printHumanized(tv.tv_sec);
                 } else {
                     printf("%ld.%ld\n", tv.tv_sec, tv.tv_usec);
                 }
@@ -134,7 +151,7 @@ int main(int argc, char **argv) {
                     fputs("time(...)  = ", stdout);
                 }
                 if (humanize) {
-                    printf("%s", ctime(&myTime));
+                    printHumanized(myTime);
                 } else {
                     printf("%ld\n", myTime);
                 }
