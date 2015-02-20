@@ -86,17 +86,17 @@ char *findCommandInPath(const char *command) {
 
 int str2msg(char *command, tmanMSG_t *msg) {
     int i;
-    struct timespec startTime;
     int point = 0;
 
     if ((!command) || (!msg)) {
         return -1;
     }
-    startTime.tv_sec = 0;
-    startTime.tv_nsec = 0;
     memset(msg->data, 0, MQ_MSGSIZE);
     for (i = 0; command[i] != 0; i++) {
         switch (command[i]) {
+            case '#':
+                /* comment */
+                return 0;
             case '=':
                 if (msg->member.type)
                     return -1;
@@ -105,8 +105,6 @@ int str2msg(char *command, tmanMSG_t *msg) {
                 break;
             case '@':
                 if (msg->member.type)
-                    return -1;
-                if (clock_gettime(CLOCK_REALTIME, &startTime) != 0)
                     return -1;
                 point = 0;
                 msg->member.type = T_MOV;
@@ -123,7 +121,7 @@ int str2msg(char *command, tmanMSG_t *msg) {
                 msg->member.type = T_ADD;
                 point = 0;
                 break;
-            case 'x':
+            case '*':
                 if (msg->member.type)
                     return -1;
                 msg->member.type = T_MUL;
@@ -164,9 +162,6 @@ int str2msg(char *command, tmanMSG_t *msg) {
             default:
                 return -1;
         }
-    }
-    if (startTime.tv_sec) {
-        msg->member.delta.tv_sec = msg->member.delta.tv_sec - startTime.tv_sec;
     }
     return 0;
 }

@@ -195,6 +195,7 @@ int timeControll(struct timespec *ts) {
     }
 
     running.tv_sec = running.tv_sec - execTime.tv_sec;
+    running.tv_nsec = running.tv_nsec - execTime.tv_nsec;
 
     if (checkMessageInQueue(mQ) == -1) {
         fprintf(stderr, "Error %d: %s\n", errno, strerror(errno));
@@ -227,10 +228,11 @@ int timeControll(struct timespec *ts) {
             case T_SET:
                 ts->tv_sec = mList.current->shift->member.delta.tv_sec + offset.tv_sec;
                 ts->tv_nsec = mList.current->shift->member.delta.tv_nsec + offset.tv_nsec;
+                printf("%ld (=) %ld\n", ts->tv_sec, mList.current->shift->member.delta.tv_sec);
                 break;
             case T_SUB:
-                ts->tv_sec -=  mList.current->shift->member.delta.tv_sec + offset.tv_sec;
-                ts->tv_nsec -= mList.current->shift->member.delta.tv_nsec + offset.tv_nsec;
+                ts->tv_sec = (ts->tv_sec + offset.tv_sec) - mList.current->shift->member.delta.tv_sec;
+                ts->tv_nsec = (ts->tv_nsec + offset.tv_nsec) - mList.current->shift->member.delta.tv_nsec;
                 printf("%ld (-) %ld\n", ts->tv_sec, mList.current->shift->member.delta.tv_sec);
                 break;
             case T_ADD:
@@ -239,14 +241,23 @@ int timeControll(struct timespec *ts) {
                 printf("%ld (+) %ld\n", ts->tv_sec, mList.current->shift->member.delta.tv_sec);
                 break;
             case T_MUL:
-                ts->tv_sec = (running.tv_sec * mList.current->shift->member.delta.tv_sec) + ts->tv_sec + offset.tv_sec;
+                ts->tv_sec = (running.tv_sec * mList.current->shift->member.delta.tv_sec)
+                    + ts->tv_sec + offset.tv_sec;
+                printf("%ld (*) %ld\n", ts->tv_sec, mList.current->shift->member.delta.tv_sec);
                 break;
             case T_MOV:
-                offset.tv_sec = mList.current->shift->member.delta.tv_sec;
-                offset.tv_nsec = mList.current->shift->member.delta.tv_nsec;
+                if (! offset.tv_sec) {
+                    if ((*orig_clock_gettime)(CLOCK_REALTIME, &offset)) {
+                        fprintf(stderr,"Cannot get current time.");
+                        exit(EXIT_FAILURE);
+                    }
+                    offset.tv_sec = mList.current->shift->member.delta.tv_sec - offset.tv_sec;
+                    offset.tv_nsec -= mList.current->shift->member.delta.tv_nsec - offset.tv_nsec;
+                }
+
                 ts->tv_sec += offset.tv_sec;
                 ts->tv_nsec += offset.tv_nsec;
-                printf("%ld (@) %ld\n", ts->tv_sec, mList.current->shift->member.delta.tv_sec);
+               printf("%ld (@) %ld\n", ts->tv_sec, mList.current->shift->member.delta.tv_sec);
                 break;
         }
     }
