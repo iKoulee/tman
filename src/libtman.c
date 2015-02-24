@@ -23,6 +23,9 @@
 
 #define _GNU_SOURCE             /* required to get RTLD_NEXT defined */
 #define __USE_GNU               /* enable conversions timeval <-> timesec */
+/*
+#define __DEBUG
+*/
 
 #include <stdio.h>
 /*#include <time.h>*/
@@ -118,8 +121,9 @@ void __attribute__ ((constructor)) libtman_init(void) {
                 perror("Cannot get a message queue: Unknown error.\n");
         }
     }
-
+#ifdef __DEBUG
     printf("Library: My pid is: %d\n\n", getpid());
+#endif
 }
 
 int put2Q(struct msgList *mList, tmanMSG_t *msg) {
@@ -171,9 +175,11 @@ int checkMessageInQueue( mqd_t mQ) {
     memset(msg->data, 0, MQ_MSGSIZE);
     bytesRead = mq_receive(mQ, msg->data, MQ_MSGSIZE, NULL);
     while (bytesRead != -1) {
+#ifdef __DEBUG
         printf("Library: Got MSG:\n - Delay: %ld\n - Type: %d\n - Delta: %ld\n",
                 msg->member.delay.tv_sec, msg->member.type, msg->member.delta.tv_sec);
         printf("Library: Record inserted on the %dth position\n", put2Q(&mList, msg));
+#endif
         if (!(msg = malloc(MQ_MSGSIZE))) {
             errno = ENOMEM;
             return -1;
@@ -189,7 +195,6 @@ int checkMessageInQueue( mqd_t mQ) {
 
 int timeControll(struct timespec *ts) {
     struct timespec running;
-
     if ((*orig_clock_gettime)(CLOCK_MONOTONIC, &running)) {
         return -1;
     }
@@ -203,7 +208,9 @@ int timeControll(struct timespec *ts) {
     }
 
     if (!mList.begin) { /* there is no guidelines to change time */
+#ifdef __DEBUG
         puts("Qeue is empty");
+#endif
         return 0;
     }
 
@@ -228,22 +235,30 @@ int timeControll(struct timespec *ts) {
             case T_SET:
                 ts->tv_sec = mList.current->shift->member.delta.tv_sec + offset.tv_sec;
                 ts->tv_nsec = mList.current->shift->member.delta.tv_nsec + offset.tv_nsec;
+#ifdef __DEBUG
                 printf("%ld (=) %ld\n", ts->tv_sec, mList.current->shift->member.delta.tv_sec);
+#endif
                 break;
             case T_SUB:
                 ts->tv_sec = (ts->tv_sec + offset.tv_sec) - mList.current->shift->member.delta.tv_sec;
                 ts->tv_nsec = (ts->tv_nsec + offset.tv_nsec) - mList.current->shift->member.delta.tv_nsec;
+#ifdef __DEBUG
                 printf("%ld (-) %ld\n", ts->tv_sec, mList.current->shift->member.delta.tv_sec);
+#endif
                 break;
             case T_ADD:
                 ts->tv_sec +=  mList.current->shift->member.delta.tv_sec + offset.tv_sec;
                 ts->tv_nsec += mList.current->shift->member.delta.tv_nsec + offset.tv_nsec;
+#ifdef __DEBUG
                 printf("%ld (+) %ld\n", ts->tv_sec, mList.current->shift->member.delta.tv_sec);
+#endif
                 break;
             case T_MUL:
                 ts->tv_sec = (running.tv_sec * mList.current->shift->member.delta.tv_sec)
                     + ts->tv_sec + offset.tv_sec;
+#ifdef __DEBUG
                 printf("%ld (*) %ld\n", ts->tv_sec, mList.current->shift->member.delta.tv_sec);
+#endif
                 break;
             case T_MOV:
                 if (! offset.tv_sec) {
@@ -257,7 +272,9 @@ int timeControll(struct timespec *ts) {
 
                 ts->tv_sec += offset.tv_sec;
                 ts->tv_nsec += offset.tv_nsec;
-               printf("%ld (@) %ld\n", ts->tv_sec, mList.current->shift->member.delta.tv_sec);
+#ifdef __DEBUG
+                printf("%ld (@) %ld\n", ts->tv_sec, mList.current->shift->member.delta.tv_sec);
+#endif
                 break;
         }
     }

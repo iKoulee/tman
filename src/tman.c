@@ -140,8 +140,10 @@ int str2msg(char *command, tmanMSG_t *msg) {
                 if (msg->member.type)
                     if (point) {
                         msg->member.delta.tv_nsec = msg->member.delta.tv_nsec + (command[i] - 48) * (int) pow(10,point--);
+#ifdef __DEBUG
                         printf("%d = pow(10,%d+1)\n", (int)  pow(10,point+1), point);
                         printf("nsec + (%d - 48) * %d\n", command[i], (int) pow(10,point+1));
+#endif
                     } else
                         msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10 + command[i] - 48;
                 else
@@ -277,7 +279,9 @@ int main(int argc, char **argv) {
             default:
                 command = findCommandInPath(arg.we_wordv[0]);
         }
+#ifdef __DEBUG
         printf("File %s\nCanonical %s\n", arg.we_wordv[0] , command);
+#endif
         switch (execve(command, arg.we_wordv, environ)) {
             case E2BIG:
                 perror("Argument list is to long");
@@ -328,7 +332,6 @@ int main(int argc, char **argv) {
         }
         wordfree(&arg);
     } else {
-        
         /* Open the kernel message qeue */
         mqAttr.mq_msgsize = MQ_MSGSIZE;
         mqAttr.mq_maxmsg = MQ_MAXMSG;
@@ -345,7 +348,9 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Error %d: %s\n", errno, strerror(errno));
                 exit(EXIT_FAILURE);
             } else {
+#ifdef __DEBUG
                 printf("MSG send sucessfully: %d\n", msg.member.type);
+#endif
             }
         }
 
@@ -364,13 +369,11 @@ int main(int argc, char **argv) {
                     }
                 }
             }
-            
         }
 
         waitpid(-1, &childStatus, 0);
         mq_close(mQ);
         mq_unlink(mqName);
-        printf("Exiting\n");
         exit(childStatus);
     }
     return EXIT_SUCCESS;
