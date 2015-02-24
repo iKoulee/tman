@@ -41,6 +41,20 @@ static int verbose = 0;
 static int humanize = 0;
 static char *locale = NULL;
 
+void printUsage(char *progName) {
+    puts("Usage:");
+    printf("%s <--time|--gettimeofday|--clock_gettime> [OPTIONS]\n", progName);
+    puts("\t-c <count>\tNumber of repeating");
+    puts("\t-d <sec>\tDelay betwen repeating");
+    puts("\t-H --humanize\tShow time in human readable localized form");
+    puts("\t-v --verbose\tVerbose output");
+    puts("\t-h --help\tShow this help and exit");
+    puts("\t--time\t\tAsk for time throug function time");
+    puts("\t--gettimeofday\tAsk for time throug function gettimeofday");
+    puts("\t--clock_gettime\tAsk for time throug function clock_gettime\n");
+}
+
+
 void printHumanized(time_t seconds) {
     char *sBuffer = malloc(TIME_STRING_BUFFER_SIZE);
     if (!sBuffer) {
@@ -84,15 +98,16 @@ int main(int argc, char **argv) {
 
     while (1) {
         int indexPtr = 0;
-        static char *shortOpts = "c:d:v";
+        static char *shortOpts = "c:d:vhH";
         static struct option longOpts[] = {
             {"clock_gettime", no_argument, NULL, 1},
             {"gettimeofday", no_argument, NULL, 2},
             {"time", no_argument, NULL, 4},
             {"count", required_argument, NULL, 'c'},
             {"delay", required_argument, NULL, 'd'},
-            {"verbose", no_argument, &verbose, 1},
-            {"humanize", no_argument, &humanize, 1},
+            {"verbose", no_argument, &verbose, 'v'},
+            {"humanize", no_argument, &humanize, 'H'},
+            {"help", no_argument, NULL, 'h'},
             {0, 0, 0, 0}
         };
 
@@ -112,6 +127,15 @@ int main(int argc, char **argv) {
                 break;
             case 'd':
                 delay = strtol(optarg,NULL, 0);
+                break;
+            case 'h':
+                printUsage(argv[0]);
+                exit(EXIT_SUCCESS);
+            case 'H':
+                humanize = 1;
+                break;
+            case 'v':
+                verbose = 1;
                 break;
         }
     }

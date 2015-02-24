@@ -7,8 +7,11 @@ debug: clean build
 
 build: sidekick libtman.so tman
 
-libtman.so:
-	$(CC) $(CFLAGS) --shared -ldl -lrt -fPIC -o $@ -c $<
+libtman.so: libtman.o
+	$(CC) $(CFLAGS) --shared -ldl -lrt -o $@ $<
+
+libtman.o: libtman.c
+	$(CC) $(CFLAGS) -fPIC -o $@ -c $<
 
 tman: tman.o
 	$(CC) $(CFLAGS) -lrt -lm -o $@ $<
