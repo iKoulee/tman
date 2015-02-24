@@ -268,7 +268,7 @@ int main(int argc, char **argv) {
             }
         }
 
-        putenv("LD_PRELOAD=./libtman.so");
+        putenv("LD_PRELOAD=libtman.so");
         switch (arg.we_wordv[0][0]) {
             case '.':
             case '/':
