@@ -139,16 +139,16 @@ int str2msg(char *command, tmanMSG_t *msg) {
             case '9':
                 if (msg->member.type)
                     if (point) {
-                        msg->member.delta.tv_nsec = msg->member.delta.tv_nsec + (command[i] - 48) * (int) pow(10,point--);
+                        msg->member.delta.tv_nsec = msg->member.delta.tv_nsec + (command[i] - 48) * (int) pow10(point--);
 #ifdef __DEBUG
-                        printf("%d = pow(10,%d+1)\n", (int)  pow(10,point+1), point);
-                        printf("nsec + (%d - 48) * %d\n", command[i], (int) pow(10,point+1));
+                        printf("%d = pow10(%d+1)\n", (int)  pow10(point+1), point);
+                        printf("nsec + (%d - 48) * %d\n", command[i], (int) pow10(point+1));
 #endif
                     } else
                         msg->member.delta.tv_sec = msg->member.delta.tv_sec * 10 + command[i] - 48;
                 else
                     if (point)
-                        msg->member.delay.tv_nsec = msg->member.delay.tv_nsec + (command[i] - 48) * (int) pow(10,point--);
+                        msg->member.delay.tv_nsec = msg->member.delay.tv_nsec + (command[i] - 48) * (int) pow10(point--);
                     else
                         msg->member.delay.tv_sec = (msg->member.delay.tv_sec * 10) + command[i] - 48;
                 break;
