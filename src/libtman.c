@@ -187,8 +187,10 @@ int checkMessageInQueue( mqd_t mQ) {
         memset(msg->data, 0, MQ_MSGSIZE);
         bytesRead = mq_receive(mQ, msg->data, MQ_MSGSIZE, NULL);
     }
-    if ((bytesRead == -1) && (errno != EAGAIN))
+    if ((bytesRead == -1) && (errno != EAGAIN)) {
+        free(msg);
         return -1;
+    }
     free(msg);
     return counter;
 }
