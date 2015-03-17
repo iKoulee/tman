@@ -1,3 +1,2 @@
 ?BUG: missing environment variables (amahdal@redhat.com)
-BUG: ERROR: ld.so: object './libtman.so' from LD_PRELOAD cannot be preloaded: ignored. (amahdal@redhat.com)
 BUG: ./src/tman -c "env" -t +100 | grep ^PATH PATH=/home/amahdal/bin (amahdal@redhat.com)
