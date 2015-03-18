@@ -166,6 +166,7 @@ int checkMessageInQueue( mqd_t mQ) {
     ssize_t bytesRead;
     tmanMSG_t *msg;
     int counter = 0;
+    int position = 0;
 
     if (! (msg = malloc(MQ_MSGSIZE))) {
         errno = ENOMEM;
@@ -175,10 +176,14 @@ int checkMessageInQueue( mqd_t mQ) {
     memset(msg->data, 0, MQ_MSGSIZE);
     bytesRead = mq_receive(mQ, msg->data, MQ_MSGSIZE, NULL);
     while (bytesRead != -1) {
+        position = put2Q(&mList, msg);
+        if (position >= 0) {
+            counter++;
+        }
 #ifdef __DEBUG
         printf("Library: Got MSG:\n - Delay: %ld\n - Type: %d\n - Delta: %ld\n",
                 msg->member.delay.tv_sec, msg->member.type, msg->member.delta.tv_sec);
-        printf("Library: Record inserted on the %dth position\n", put2Q(&mList, msg));
+        printf("Library: Record inserted on the %dth position\n", position);
 #endif
         if (!(msg = malloc(MQ_MSGSIZE))) {
             errno = ENOMEM;

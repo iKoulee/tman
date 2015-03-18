@@ -1,3 +1,2 @@
 ?BUG: missing environment variables (amahdal@redhat.com)
 BUG: ./src/tman -c "env" -t +100 | grep ^PATH PATH=/home/amahdal/bin (amahdal@redhat.com)
-checkMessageInQueue seems to be expendable Reporter: rhack@redhat.com Thanks
