@@ -59,7 +59,7 @@ char *findCommandInPath(const char *command) {
     char *envPath = getenv("PATH");
     int comLen, pathLen;
     char *absPath = malloc(PATH_MAX);
-    struct stat *BUF = malloc(sizeof(stat));
+    struct stat stat_buf;
     int statVal;
 
     if (envPath) {
@@ -75,7 +75,7 @@ char *findCommandInPath(const char *command) {
             strcpy(absPath, path);
             absPath[pathLen] = '/';
             strncat(absPath, command, comLen);
-            if ((statVal = stat(absPath,BUF)) == 0) 
+            if ((statVal = stat(absPath, &stat_buf)) == 0) 
                 return absPath;
             path = strtok(NULL, delim);
         }
