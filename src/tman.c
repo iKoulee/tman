@@ -66,9 +66,7 @@ char *findCommandInPath(const char *command) {
         char *path = strtok(envPath, delim);
         comLen = strlen(command);
         while (path != NULL) {
-            int i;
-            for (i = 0; i<PATH_MAX; i++)
-                absPath[i]=0;
+	    memset(absPath, '\0', PATH_MAX);
             pathLen = strlen(path);
             if ((pathLen >= PATH_MAX) || ((pathLen + comLen + 1) >= PATH_MAX))
                 return NULL;
