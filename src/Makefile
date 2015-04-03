@@ -1,4 +1,4 @@
-CFLAGS := -ansi -Wall -Werror
+CFLAGS := -Wall -Werror -std=gnu99 -Wextra -pedantic -pedantic-errors
 
 all: clean build
 

@@ -51,11 +51,42 @@ struct msgList {
 };
 
 /* sys/time.h */
-static int (*orig_gettimeofday)(struct timeval *, struct timezone *);
+typedef int (*__libc_gettimeofday)(struct timeval *, struct timezone *);
 
 /* time.h */
-static int (*orig_clock_gettime)(clockid_t, struct timespec *);
-static time_t (*orig_time)(time_t *res);
+typedef int (*__libc_clock_gettime)(clockid_t clk_id, struct timespec *tp);
+typedef time_t (*__libc_time)(time_t *t);
+
+#define TMAN_SYMBOL_ENTRY(i) \
+        union { \
+                __libc_##i f; \
+                void *obj; \
+        } _libc_##i
+
+struct tman_libc_symbols_t {
+	TMAN_SYMBOL_ENTRY(gettimeofday);
+	TMAN_SYMBOL_ENTRY(clock_gettime);
+	TMAN_SYMBOL_ENTRY(time);
+} tman_libc_symbols;
+
+/* Simplified. Only glibc are supported here */
+#define tman_bind_symbol_libc(sym_name) \
+        if (tman_libc_symbols._libc_##sym_name.obj == NULL) { \
+                tman_libc_symbols._libc_##sym_name.obj = \
+                        dlsym(RTLD_NEXT, #sym_name); \
+        }
+
+#define TMAN_SYM_STRUCT_PATH(sym_name) \
+	tman_libc_symbols._libc_##sym_name.obj
+
+#define TMAN_GLIBC_GETTIMEOFDAY(timeval, timezone) \
+	tman_libc_symbols._libc_gettimeofday.f(timeval, timezone)
+
+#define TMAN_GLIBC_CLOCK_GETTIME(clk_id, tp) \
+	tman_libc_symbols._libc_clock_gettime.f(clk_id, tp)
+
+#define TMAN_GLIBC_TIME(t) \
+	tman_libc_symbols._libc_time.f(t)
 
 mqd_t mQ;
 struct timespec execTime, offset;
@@ -69,13 +100,14 @@ void __attribute__ ((constructor)) libtman_init(void) {
     pid_t myPID;
     char mqName[MQ_MAXNAMELENGTH];
 
-    orig_gettimeofday   = dlsym(RTLD_NEXT, "gettimeofday");
-    orig_clock_gettime  = dlsym(RTLD_NEXT, "clock_gettime");
-    orig_time           = dlsym(RTLD_NEXT, "time");
+    tman_bind_symbol_libc(gettimeofday);
+    tman_bind_symbol_libc(clock_gettime);
+    tman_bind_symbol_libc(time);
 
-    if (orig_clock_gettime == NULL)
-        exit(EXIT_FAILURE);
-    if ((*orig_clock_gettime)(CLOCK_MONOTONIC, &execTime)) {
+    /* Is really wise to die here? */
+    if (TMAN_SYM_STRUCT_PATH(clock_gettime) == NULL) { exit(EXIT_FAILURE); }
+
+    if (TMAN_GLIBC_CLOCK_GETTIME(CLOCK_MONOTONIC, &execTime)) {
         fprintf(stderr,"Cannot get current time.");
         exit(EXIT_FAILURE);
     }
@@ -202,7 +234,7 @@ int checkMessageInQueue( mqd_t mQ) {
 
 int timeControll(struct timespec *ts) {
     struct timespec running;
-    if ((*orig_clock_gettime)(CLOCK_MONOTONIC, &running)) {
+    if (TMAN_GLIBC_CLOCK_GETTIME(CLOCK_MONOTONIC, &running)) {
         return -1;
     }
 
@@ -269,7 +301,7 @@ int timeControll(struct timespec *ts) {
                 break;
             case T_MOV:
                 if (! offset.tv_sec) {
-                    if ((*orig_clock_gettime)(CLOCK_REALTIME, &offset)) {
+                    if (TMAN_GLIBC_CLOCK_GETTIME(CLOCK_REALTIME, &offset)) {
                         fprintf(stderr,"Cannot get current time.");
                         exit(EXIT_FAILURE);
                     }
@@ -293,10 +325,8 @@ int timeControll(struct timespec *ts) {
  */
 
 int clock_gettime(clockid_t clk_id, struct timespec *tp) {
-    if (!orig_clock_gettime) {
-        return -1;
-    }
-    if ((*orig_clock_gettime)(clk_id, tp)) {
+
+    if (TMAN_GLIBC_CLOCK_GETTIME(clk_id, tp)) {
         return -1;
     }
     return timeControll(tp);
@@ -304,10 +334,8 @@ int clock_gettime(clockid_t clk_id, struct timespec *tp) {
 
 int gettimeofday(struct timeval *tv, struct timezone *tz) {
     struct timespec ts;
-    if (!orig_gettimeofday) {
-        return 1;
-    }
-    if ((*orig_gettimeofday)(tv, tz)) {
+
+    if (TMAN_GLIBC_GETTIMEOFDAY(tv, tz)) {
         return -1;
     }
     TIMEVAL_TO_TIMESPEC(tv, &ts);
@@ -321,10 +349,8 @@ int gettimeofday(struct timeval *tv, struct timezone *tz) {
 time_t time(time_t *res) {
     time_t myTime;
     struct timespec ts;
-    if (!orig_time) {
-        return -1;
-    }
-    if ((myTime = (*orig_time)(res)) == -1) {
+
+    if ((myTime = TMAN_GLIBC_TIME(res)) == -1) {
         return -1;
     }
     ts.tv_sec = myTime;
