@@ -20,7 +20,7 @@ tman.o: tman.c
 	$(CC) $(CFLAGS) -o $@ -c $<
 
 sidekick: sidekick.o
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) -lrt -o $@ $<
 
 sidekick.o: sidekick.c
 	$(CC) $(CFLAGS) -o $@ -c $<
